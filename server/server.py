@@ -3,27 +3,23 @@ from werkzeug.security import check_password_hash
 import sqlite3
 import os
 
-# CONFIGURACIÓN DE RUTAS
-# base_dir: .../BL_TECS/server
 base_dir = os.path.dirname(os.path.abspath(__file__))
-# root_dir: .../BL_TECS
-root_dir = os.path.dirname(base_dir)
 
 app = Flask(__name__, 
-            template_folder=os.path.join(root_dir, 'templates'),
-            static_folder=os.path.join(root_dir, 'static'))
+            template_folder=os.path.join(base_dir, '../templates'),
+            static_folder=os.path.join(base_dir, '../static'))
 
-app.secret_key = 'rat_system_secure_2026'
+app.secret_key = 'clave_secreta_muy_segura_bl_tecs'
+
+# Configuración extra de seguridad para las cookies de sesión
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+)
 
 def get_db_conection():
-    # RUTA EXACTA: Sube de server/ y entra en database/
-    db_path = os.path.normpath(os.path.join(root_dir, 'database', 'database.db'))
-    
-    # Esto es para que en tu consola veas si realmente la encuentra
-    if not os.path.exists(db_path):
-        print(f"❌ ERROR: No se encontró la base de datos en: {db_path}")
-    
-    conn = sqlite3.connect(db_path)
+    ruta_dbd = os.path.normpath(os.path.join(base_dir, '../database/database.db'))
+    conn = sqlite3.connect(ruta_dbd)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -39,33 +35,78 @@ def dashboard():
         return redirect(url_for('index'))
     return render_template('dashboard.html')
 
-@app.route('/api/login', methods=['POST'])
-def login_api():
-    try:
-        datos = request.get_json()
-        conn = get_db_conection()
-        # Verificamos la tabla usuarios
-        usuario = conn.execute('SELECT * FROM usuarios WHERE username = ?', 
-                               (datos.get('username'),)).fetchone()
-        conn.close()
-
-        if usuario and check_password_hash(usuario['password'], datos.get('password')):
-            session['usuario'] = datos.get('username')
-            return jsonify({"success": True})
-        
-        return jsonify({"success": False}), 401
-    except Exception as e:
-        # Imprime el error real en la terminal para que sepas qué falló
-        print(f"🔥 Error Interno: {e}") 
-        return jsonify({"success": False, "error": str(e)}), 500
-
 @app.route('/logout')
 def logout():
-    session.clear()
+    session.pop('usuario', None)
     return redirect(url_for('index'))
 
-# Asegúrate de que obtener_tecnicos y guardar_tecnico usen también get_db_conection()
-# ... (el resto de tus rutas de la API)
+@app.route('/api/login', methods=['POST'])
+def login_api():
+    datos = request.get_json()
+    conn = get_db_conection()
+    # Buscamos al usuario por su nombre
+    usuario = conn.execute('SELECT * FROM usuarios WHERE user = ?', 
+                           (datos.get('username'),)).fetchone()
+    conn.close()
+
+    # Comparamos el hash de la DB con la contraseña escrita
+    if usuario and check_password_hash(usuario['pass'], datos.get('password')):
+        session['usuario'] = datos.get('username')
+        return jsonify({"success": True})
+    
+    return jsonify({"success": False})
+
+@app.route('/api/buscar')
+def buscar_api():
+    if 'usuario' not in session:
+        return jsonify({"error": "No autorizado"}), 401
+    
+    query = request.args.get('q', '')
+    conn = get_db_conection()
+    cursor = conn.execute('''SELECT * FROM tecnicos 
+                          WHERE nombre LIKE ? OR cuadrilla LIKE ? OR tipo_lista LIKE ?''', 
+                          (f'%{query}%', f'%{query}%', f'%{query}%'))
+    tecnicos = [dict(t) for t in cursor.fetchall()]
+    conn.close()
+    return jsonify(tecnicos)
+
+@app.route('/api/guardar', methods=['POST'])
+def guardar_tecnico():
+    if 'usuario' not in session:
+        return jsonify({"error": "No autorizado"}), 401
+        
+    datos = request.get_json()
+    id_tec = datos.get('id')
+    conn = get_db_conection()
+    
+    try:
+        if id_tec:
+            conn.execute('''UPDATE tecnicos SET nombre=?, cuadrilla=?, tipo_lista=?, telefono=?, comentario=? 
+                            WHERE id=?''', 
+                         (datos['nombre'], datos['cuadrilla'], datos['tipo_lista'], 
+                          datos['telefono'], datos['comentario'], id_tec))
+        else:
+            conn.execute('''INSERT INTO tecnicos (nombre, cuadrilla, tipo_lista, telefono, comentario) 
+                            VALUES (?, ?, ?, ?, ?)''', 
+                         (datos['nombre'], datos['cuadrilla'], datos['tipo_lista'], 
+                          datos['telefono'], datos['comentario']))
+        conn.commit()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/eliminar/<int:id>', methods=['DELETE'])
+def eliminar_tecnico(id):
+    if 'usuario' not in session:
+        return jsonify({"error": "No autorizado"}), 401
+        
+    conn = get_db_conection()
+    conn.execute('DELETE FROM tecnicos WHERE id = ?', (id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
