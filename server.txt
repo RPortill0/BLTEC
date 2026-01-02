@@ -1,0 +1,4 @@
+http://127.0.0.1:5000
+
+Para inicar servidor:
+& "C:\Users\rodrigo.portillo\Downloads\Python\python-3.14.2-embed-amd64\python.exe" server/server.py

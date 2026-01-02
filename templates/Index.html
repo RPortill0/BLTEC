@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BL_TECS - Inicio de Sesión</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='CSS/style.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div style="font-size: 3rem; margin-bottom: 10px;">👤</div>
+            <h2>SISTEMA BL_TECS</h2>
+            <p style="color: #666; margin-bottom: 20px;">Ingrese sus credenciales</p>
+            
+            <div class="form-group">
+                <input type="text" id="username" placeholder="Usuario" required>
+            </div>
+            <div class="form-group">
+                <input type="password" id="password" placeholder="Contraseña" required>
+            </div>
+            
+            <button class="btn-login" onclick="ejecutarLogin()">INGRESAR</button>
+            <div id="mensaje_error" style="color: #e74c3c; margin-top: 15px; font-size: 0.9rem; display: none;">
+                Usuario o contraseña incorrectos
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
